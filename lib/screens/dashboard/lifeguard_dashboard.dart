@@ -89,7 +89,7 @@ class _LifeguardDashboardState extends State<LifeguardDashboard> {
   Future<void> _loadSchedule(int userId) async {
     try {
       final now = DateTime.now();
-      final endDate = now.add(const Duration(days: 7));
+      final endDate = now.add(const Duration(days: 30)); // Show 1 month of schedule
       final schedule = await _userService.getUserSchedule(
         userId,
         startDate: now,
@@ -488,7 +488,7 @@ class _LifeguardDashboardState extends State<LifeguardDashboard> {
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  'Your Schedule',
+                  'Your Schedule (Next 30 Days)',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -502,7 +502,7 @@ class _LifeguardDashboardState extends State<LifeguardDashboard> {
                     ? Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          for (var schedule in (_scheduleData!['schedules'] as List).take(3))
+                          for (var schedule in (_scheduleData!['schedules'] as List))
                             Padding(
                               padding: const EdgeInsets.only(bottom: 12.0),
                               child: Container(
