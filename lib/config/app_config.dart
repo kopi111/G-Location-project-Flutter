@@ -1,26 +1,31 @@
 /// Application configuration constants
 class AppConfig {
   // API Configuration
-  static const String apiBaseUrl = 'http://localhost:5000/api';
+  static const String apiBaseUrl = 'http://localhost:5000';
   static const String apiVersion = 'v1';
 
-  // API Endpoints
-  static const String loginEndpoint = '/auth/login';
-  static const String registerEndpoint = '/auth/register';
-  static const String refreshTokenEndpoint = '/auth/refresh-token';
-  static const String logoutEndpoint = '/auth/logout';
-  static const String forgotPasswordEndpoint = '/auth/forgot-password';
-  static const String resetPasswordEndpoint = '/auth/reset-password';
-  static const String sendVerificationCodeEndpoint = '/auth/send-verification-code';
-  static const String verifyCodeEndpoint = '/auth/verify-code';
+  // API Endpoints - Mobile API (matches backend MobileApiController)
+  static const String loginEndpoint = '/api/mobile/login';
+  static const String registerEndpoint = '/api/mobile/register';
+  static const String refreshTokenEndpoint = '/api/mobile/refresh-token';
+  static const String logoutEndpoint = '/api/mobile/logout';
+  static const String forgotPasswordEndpoint = '/api/mobile/forgot-password';
+  static const String resetPasswordEndpoint = '/api/mobile/reset-password';
+  static const String sendVerificationCodeEndpoint = '/api/mobile/send-verification-code';
+  static const String verifyCodeEndpoint = '/api/mobile/verify-code';
 
-  static const String locationsEndpoint = '/locations';
-  static const String nearbyLocationsEndpoint = '/locations/nearby';
+  // User endpoints
+  static const String userProfileEndpoint = '/api/mobile/profile';
+  static const String userStatusEndpoint = '/api/mobile/status';
+  static const String userScheduleEndpoint = '/api/mobile/schedule';
 
-  static const String timeEntriesEndpoint = '/time-entries';
-  static const String clockInEndpoint = '/time-entries/clock-in';
-  static const String clockOutEndpoint = '/time-entries/clock-out';
-  static const String activeClockInEndpoint = '/time-entries/active';
+  static const String locationsEndpoint = '/api/mobile/locations';
+  static const String nearbyLocationsEndpoint = '/api/mobile/locations/nearby';
+
+  static const String timeEntriesEndpoint = '/api/mobile/clock/records';
+  static const String clockInEndpoint = '/api/mobile/clock/in';
+  static const String clockOutEndpoint = '/api/mobile/clock/out';
+  static const String activeClockInEndpoint = '/api/mobile/clock/status';
 
   // App Settings
   static const String appName = 'SummerSplash Field';

@@ -22,8 +22,24 @@ class AuthService {
     );
 
     if (response.data['success'] == true) {
-      final userData = response.data['data'];
-      final user = User.fromJson(userData);
+      // Backend returns user nested in 'user' field and token at root level
+      final userData = response.data['user'];
+      final token = response.data['token'] ?? '';
+
+      // Create user from response - map backend fields to User model
+      final user = User.fromJson({
+        'userId': userData['userId'],
+        'email': userData['email'],
+        'firstName': userData['firstName'],
+        'lastName': userData['lastName'],
+        'roleName': userData['role'] ?? 'Lifeguard', // Backend uses 'role', not 'roleName'
+        'token': token,
+        'refreshToken': token, // Backend doesn't provide separate refresh token
+        'tokenExpiry': DateTime.now().add(const Duration(hours: 8)).toIso8601String(),
+        'emailVerified': userData['emailVerified'] ?? true,
+        'isActive': userData['isActive'] ?? true,
+        'isApproved': userData['isApproved'] ?? true,
+      });
 
       // Save user data and tokens
       await _saveUserData(user);
@@ -31,24 +47,24 @@ class AuthService {
       return user;
     } else {
       // Check if this is an email verification issue
-      final message = response.data['message'] ?? '';
-      if (message.toLowerCase().contains('verify your email')) {
+      if (response.data['requiresVerification'] == true) {
         throw EmailNotVerifiedException(
-          email: response.data['data']?['email'] ?? email,
-          userId: response.data['data']?['userId'],
-          message: message,
+          email: response.data['email'] ?? email,
+          userId: null,
+          message: response.data['message'] ?? 'Please verify your email',
         );
       }
 
+      final message = response.data['message'] ?? 'Login failed';
       throw ApiException(
-        message.isNotEmpty ? message : 'Login failed',
+        message,
         statusCode: response.statusCode ?? 400,
       );
     }
   }
 
   /// Register new user
-  Future<User> register({
+  Future<Map<String, dynamic>> register({
     required String firstName,
     required String lastName,
     required String email,
@@ -71,9 +87,12 @@ class AuthService {
     );
 
     if (response.data['success'] == true) {
-      final userData = response.data['data'];
-      // Note: User may need to verify email before login
-      return User.fromJson(userData);
+      // Return email for verification flow
+      return {
+        'success': true,
+        'email': response.data['email'] ?? email,
+        'message': response.data['message'] ?? 'Registration successful',
+      };
     } else {
       throw ApiException(
         response.data['message'] ?? 'Registration failed',

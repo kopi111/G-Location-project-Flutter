@@ -63,20 +63,34 @@ class LocationApiService {
     required double longitude,
     double maxDistanceMeters = 1000,
   }) async {
-    final response = await _apiClient.post(
+    final response = await _apiClient.get(
       AppConfig.nearbyLocationsEndpoint,
-      data: {
+      queryParameters: {
         'latitude': latitude,
         'longitude': longitude,
-        'maxDistanceMeters': maxDistanceMeters,
+        'maxDistance': maxDistanceMeters,
       },
     );
 
     if (response.data['success'] == true) {
-      final locations = (response.data['data'] as List)
-          .map((json) => models.NearbyLocation.fromJson(json as Map<String, dynamic>))
-          .toList();
-      return locations;
+      final nearbyLocations = <models.NearbyLocation>[];
+      final locations = response.data['locations'] as List? ?? [];
+      for (final loc in locations) {
+        nearbyLocations.add(models.NearbyLocation(
+          location: models.Location(
+            locationId: loc['locationId'] ?? 0,
+            locationName: loc['name'] ?? '',
+            address: loc['address'] ?? '',
+            latitude: (loc['latitude'] as num?)?.toDouble() ?? 0.0,
+            longitude: (loc['longitude'] as num?)?.toDouble() ?? 0.0,
+            geofenceRadiusMeters: loc['geofenceRadius'] ?? 100,
+            isActive: loc['isActive'] ?? true,
+            createdAt: DateTime.now(),
+          ),
+          distanceInMeters: (loc['distanceMeters'] as num?)?.toDouble() ?? 0.0,
+        ));
+      }
+      return nearbyLocations;
     } else {
       throw ApiException(
         response.data['message'] ?? 'Failed to find nearby locations',

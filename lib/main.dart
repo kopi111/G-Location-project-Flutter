@@ -14,6 +14,7 @@ import 'services/gps/location_service.dart';
 import 'blocs/auth/auth_bloc.dart';
 import 'blocs/auth/auth_event.dart';
 import 'blocs/auth/auth_state.dart';
+import 'blocs/time_entry/time_entry_bloc.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/dashboard/dashboard_router.dart';
 
@@ -84,6 +85,9 @@ class SummerSplashApp extends StatelessWidget {
           BlocProvider(
             create: (context) => AuthBloc(authService)
               ..add(const AuthCheckRequested()),
+          ),
+          BlocProvider(
+            create: (context) => TimeEntryBloc(timeEntryService: timeEntryService),
           ),
         ],
         child: MaterialApp(

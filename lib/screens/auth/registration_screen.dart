@@ -9,7 +9,7 @@ import '../../models/user_model.dart';
 import '../../services/api/api_client.dart';
 import 'email_verification_screen.dart';
 
-/// Registration Screen with role selection
+/// Registration Screen
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
 
@@ -28,7 +28,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
-  UserRole _selectedRole = UserRole.lifeguard;
+  // Default role set to Lifeguard - role will be assigned by admin
+  final UserRole _defaultRole = UserRole.lifeguard;
 
   @override
   void dispose() {
@@ -51,7 +52,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
               phone: _phoneController.text.trim(),
               password: _passwordController.text,
               confirmPassword: _confirmPasswordController.text,
-              roleName: _selectedRole.value,
+              roleName: _defaultRole.value,
             ),
           );
     }
@@ -249,38 +250,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Role Selection
-                    DropdownButtonFormField<UserRole>(
-                      value: _selectedRole,
-                      decoration: const InputDecoration(
-                        labelText: 'Role',
-                        hintText: 'Select your role',
-                        prefixIcon: Icon(Icons.work_outlined),
-                      ),
-                      items: [
-                        UserRole.lifeguard,
-                        UserRole.poolAttendant,
-                        UserRole.serviceTechnician,
-                        UserRole.manager,
-                        UserRole.supervisor,
-                      ].map((role) {
-                        return DropdownMenuItem<UserRole>(
-                          value: role,
-                          child: Text(_getRoleDisplayName(role)),
-                        );
-                      }).toList(),
-                      onChanged: isLoading
-                          ? null
-                          : (UserRole? value) {
-                              if (value != null) {
-                                setState(() {
-                                  _selectedRole = value;
-                                });
-                              }
-                            },
-                    ),
-                    const SizedBox(height: 16),
-
                     // Password
                     TextFormField(
                       controller: _passwordController,
@@ -429,22 +398,5 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         ],
       ),
     );
-  }
-
-  String _getRoleDisplayName(UserRole role) {
-    switch (role) {
-      case UserRole.lifeguard:
-        return 'Lifeguard';
-      case UserRole.poolAttendant:
-        return 'Pool Attendant';
-      case UserRole.serviceTechnician:
-        return 'Service Technician';
-      case UserRole.manager:
-        return 'Manager';
-      case UserRole.supervisor:
-        return 'Supervisor';
-      default:
-        return role.value;
-    }
   }
 }

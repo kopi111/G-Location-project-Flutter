@@ -9,7 +9,8 @@ class TimeEntryService {
   TimeEntryService(this._apiClient);
 
   /// Clock in at a location with GPS validation
-  Future<TimeEntry> clockIn({
+  Future<Map<String, dynamic>> clockIn({
+    required int userId,
     required int locationId,
     required double latitude,
     required double longitude,
@@ -19,16 +20,18 @@ class TimeEntryService {
     final response = await _apiClient.post(
       AppConfig.clockInEndpoint,
       data: {
+        'userId': userId,
         'locationId': locationId,
-        'latitude': latitude,
-        'longitude': longitude,
-        'deviceInfo': deviceInfo,
         'notes': notes,
       },
     );
 
     if (response.data['success'] == true) {
-      return TimeEntry.fromJson(response.data['data'] as Map<String, dynamic>);
+      return {
+        'success': true,
+        'message': response.data['message'] ?? 'Clocked in successfully',
+        'clockInTime': response.data['clockInTime'],
+      };
     } else {
       throw ApiException(
         response.data['message'] ?? 'Clock in failed',
@@ -38,7 +41,8 @@ class TimeEntryService {
   }
 
   /// Clock out from current active shift
-  Future<TimeEntry> clockOut({
+  Future<Map<String, dynamic>> clockOut({
+    required int userId,
     required double latitude,
     required double longitude,
     String? notes,
@@ -46,14 +50,17 @@ class TimeEntryService {
     final response = await _apiClient.post(
       AppConfig.clockOutEndpoint,
       data: {
-        'latitude': latitude,
-        'longitude': longitude,
-        'notes': notes,
+        'userId': userId,
       },
     );
 
     if (response.data['success'] == true) {
-      return TimeEntry.fromJson(response.data['data'] as Map<String, dynamic>);
+      return {
+        'success': true,
+        'message': response.data['message'] ?? 'Clocked out successfully',
+        'clockOutTime': response.data['clockOutTime'],
+        'totalHours': response.data['totalHours'] ?? 0.0,
+      };
     } else {
       throw ApiException(
         response.data['message'] ?? 'Clock out failed',
@@ -63,12 +70,19 @@ class TimeEntryService {
   }
 
   /// Get active clock-in for current user
-  Future<TimeEntry?> getActiveClockIn() async {
+  Future<Map<String, dynamic>?> getActiveClockIn({required int userId}) async {
     try {
-      final response = await _apiClient.get(AppConfig.activeClockInEndpoint);
+      final response = await _apiClient.get('${AppConfig.activeClockInEndpoint}/$userId');
 
-      if (response.data['success'] == true) {
-        return TimeEntry.fromJson(response.data['data'] as Map<String, dynamic>);
+      if (response.data['success'] == true && response.data['isClockedIn'] == true) {
+        return {
+          'isClockedIn': true,
+          'recordId': response.data['recordId'],
+          'clockInTime': response.data['clockInTime'],
+          'locationId': response.data['locationId'],
+          'locationName': response.data['locationName'],
+          'hoursWorked': response.data['hoursWorked'],
+        };
       }
       return null;
     } on ApiException catch (e) {

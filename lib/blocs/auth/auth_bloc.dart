@@ -80,7 +80,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(const AuthLoading());
 
     try {
-      await _authService.register(
+      final result = await _authService.register(
         firstName: event.firstName,
         lastName: event.lastName,
         email: event.email,
@@ -90,7 +90,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         roleName: event.roleName,
       );
 
-      emit(AuthRegistrationSuccess(event.email, password: event.password));
+      // After successful registration, user needs to verify email
+      emit(AuthEmailVerificationRequired(
+        email: result['email'] ?? event.email,
+        userId: 0, // UserId not needed at this stage
+      ));
     } on ApiException catch (e) {
       emit(AuthError(e.message));
     } catch (e) {

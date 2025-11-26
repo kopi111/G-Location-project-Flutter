@@ -1,12 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 import '../../models/user_model.dart';
 import '../../config/app_theme.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/auth/auth_event.dart';
+import '../../blocs/time_entry/time_entry_bloc.dart';
+import '../../blocs/time_entry/time_entry_event.dart';
+import '../../blocs/time_entry/time_entry_state.dart';
+import '../../screens/time_entry/clock_in_screen.dart';
+import '../../screens/time_entry/clock_out_screen.dart';
+import '../../screens/time_entry/time_history_screen.dart';
+import '../../widgets/loading_indicator.dart';
+import '../../services/api/user_service.dart';
+import '../../services/api/api_client.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Manager/Supervisor Dashboard
-class ManagerDashboard extends StatelessWidget {
+class ManagerDashboard extends StatefulWidget {
   final User user;
 
   const ManagerDashboard({
@@ -15,11 +26,77 @@ class ManagerDashboard extends StatelessWidget {
   });
 
   @override
+  State<ManagerDashboard> createState() => _ManagerDashboardState();
+}
+
+class _ManagerDashboardState extends State<ManagerDashboard> {
+  late UserService _userService;
+  Map<String, dynamic>? _scheduleData;
+  bool _isLoadingSchedule = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeUserService();
+    context.read<TimeEntryBloc>().add(LoadActiveClockIn(userId: widget.user.userId));
+    _loadHoursSummary();
+  }
+
+  Future<void> _initializeUserService() async {
+    final prefs = await SharedPreferences.getInstance();
+    final apiClient = ApiClient(prefs);
+    _userService = UserService(apiClient);
+    _loadSchedule();
+  }
+
+  void _loadHoursSummary() {
+    final now = DateTime.now();
+    final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+    context.read<TimeEntryBloc>().add(LoadHoursSummary(
+          userId: widget.user.id,
+          startDate: startOfWeek,
+          endDate: now,
+        ));
+  }
+
+  Future<void> _loadSchedule() async {
+    try {
+      final now = DateTime.now();
+      final endDate = now.add(const Duration(days: 7));
+      final schedule = await _userService.getUserSchedule(
+        widget.user.userId,
+        startDate: now,
+        endDate: endDate,
+      );
+      if (mounted) {
+        setState(() {
+          _scheduleData = schedule;
+          _isLoadingSchedule = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingSchedule = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Manager Dashboard'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              context.read<TimeEntryBloc>().add(LoadActiveClockIn(userId: widget.user.userId));
+              _loadHoursSummary();
+              _loadSchedule();
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () {
@@ -28,73 +105,247 @@ class ManagerDashboard extends StatelessWidget {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Welcome Card
-            Card(
-              color: AppTheme.darkBlue,
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Welcome back,',
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+      body: RefreshIndicator(
+        onRefresh: () async {
+          context.read<TimeEntryBloc>().add(LoadActiveClockIn(userId: widget.user.userId));
+          _loadHoursSummary();
+          _loadSchedule();
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Welcome Card
+              Card(
+                color: AppTheme.darkBlue,
+                child: Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Welcome back,',
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                              color: Colors.white70,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        widget.user.fullName,
+                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.admin_panel_settings,
                             color: Colors.white70,
+                            size: 18,
                           ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      user.fullName,
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
+                          const SizedBox(width: 8),
+                          Text(
+                            widget.user.role == UserRole.manager ? 'Manager' : 'Supervisor',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: Colors.white70,
+                                ),
                           ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.admin_panel_settings,
-                          color: Colors.white70,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          user.role == UserRole.manager ? 'Manager' : 'Supervisor',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: Colors.white70,
-                              ),
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 20),
+              const SizedBox(height: 20),
 
-            // Staff Overview
-            _buildStaffOverviewCard(context),
-            const SizedBox(height: 16),
+              // Clock In/Out Card
+              _buildClockInCard(context),
+              const SizedBox(height: 16),
 
-            // Quick Actions Grid
-            _buildQuickActionsGrid(context),
-            const SizedBox(height: 16),
+              // Schedule Card
+              _buildScheduleCard(context),
+              const SizedBox(height: 16),
 
-            // Pending Reviews
-            _buildPendingReviewsCard(context),
-          ],
+              // Hours This Week Card
+              _buildHoursCard(context),
+              const SizedBox(height: 16),
+
+              // Quick Actions Grid
+              _buildQuickActionsGrid(context),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildStaffOverviewCard(BuildContext context) {
+  Widget _buildClockInCard(BuildContext context) {
+    return BlocBuilder<TimeEntryBloc, TimeEntryState>(
+      builder: (context, state) {
+        if (state is TimeEntryLoading) {
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.access_time,
+                        color: AppTheme.primaryBlue,
+                        size: 28,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Time Tracking',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  const LoadingIndicator(),
+                ],
+              ),
+            ),
+          );
+        }
+
+        bool isClockedIn = false;
+        Map<String, dynamic>? activeClockIn;
+
+        if (state is ActiveClockInLoaded) {
+          isClockedIn = state.isClockedIn;
+          activeClockIn = state.activeClockIn;
+        }
+
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.access_time,
+                      color: AppTheme.primaryBlue,
+                      size: 28,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Time Tracking',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                if (isClockedIn && activeClockIn != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.green.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.check_circle, color: Colors.green, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Clocked In',
+                              style: TextStyle(
+                                color: Colors.green.shade700,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Location: ${activeClockIn['locationName'] ?? 'Unknown'}',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Since: ${DateFormat('h:mm a').format(DateTime.parse(activeClockIn['clockInTime']))}',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Colors.grey.shade600,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 50,
+                    child: ElevatedButton.icon(
+                      onPressed: activeClockIn != null
+                          ? () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => ClockOutScreen(
+                                    activeClockIn: activeClockIn!,
+                                    userId: widget.user.userId,
+                                  ),
+                                ),
+                              ).then((_) {
+                                context.read<TimeEntryBloc>().add(LoadActiveClockIn(userId: widget.user.userId));
+                              });
+                            }
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                      ),
+                      icon: const Icon(Icons.logout),
+                      label: const Text('Clock Out'),
+                    ),
+                  ),
+                ] else ...[
+                  SizedBox(
+                    height: 50,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => ClockInScreen(userId: widget.user.userId),
+                          ),
+                        ).then((_) {
+                          context.read<TimeEntryBloc>().add(LoadActiveClockIn(userId: widget.user.userId));
+                        });
+                      },
+                      icon: const Icon(Icons.login),
+                      label: const Text('Clock In'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Not clocked in',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.textSecondary,
+                        ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildScheduleCard(BuildContext context) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -104,109 +355,243 @@ class ManagerDashboard extends StatelessWidget {
             Row(
               children: [
                 Icon(
-                  Icons.people,
-                  color: AppTheme.primaryBlue,
-                  size: 28,
+                  Icons.calendar_today,
+                  color: AppTheme.secondaryTeal,
+                  size: 24,
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  'Staff Overview',
+                  'Your Schedule',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildStatColumn(context, '0', 'Clocked In', AppTheme.successGreen),
-                _buildStatColumn(context, '0', 'On Break', AppTheme.warningAmber),
-                _buildStatColumn(context, '0', 'Total Staff', AppTheme.primaryBlue),
-              ],
-            ),
+            const SizedBox(height: 16),
+            _isLoadingSchedule
+                ? const Center(child: CircularProgressIndicator())
+                : _scheduleData != null && _scheduleData!['hasSchedule'] == true
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          for (var schedule in (_scheduleData!['schedules'] as List).take(3))
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 12.0),
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.secondaryTeal.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(Icons.access_time, size: 16, color: AppTheme.secondaryTeal),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          '${schedule['startTime']} - ${schedule['endTime']}',
+                                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    if (schedule['location'] != null)
+                                      Row(
+                                        children: [
+                                          Icon(Icons.location_on, size: 16, color: AppTheme.textSecondary),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              schedule['location']['name'] ?? 'N/A',
+                                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                    color: AppTheme.textSecondary,
+                                                  ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        Icon(Icons.calendar_today, size: 16, color: AppTheme.textSecondary),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          DateFormat('MMM dd, yyyy').format(DateTime.parse(schedule['date'])),
+                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                color: AppTheme.textSecondary,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ],
+                      )
+                    : Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.event_busy, color: Colors.grey),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                _scheduleData?['message'] ?? 'No schedule at this time',
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                      color: AppTheme.textSecondary,
+                                    ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildStatColumn(BuildContext context, String value, String label, Color color) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                color: color,
-                fontWeight: FontWeight.bold,
-              ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppTheme.textSecondary,
-              ),
-        ),
-      ],
+  Widget _buildHoursCard(BuildContext context) {
+    return BlocBuilder<TimeEntryBloc, TimeEntryState>(
+      builder: (context, state) {
+        String hoursText = '0.0 hours';
+
+        if (state is HoursSummaryLoaded) {
+          final totalHours = state.summary['totalHours'] ?? 0.0;
+          hoursText = '${totalHours.toStringAsFixed(1)} hours';
+        }
+
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.timer_outlined,
+                      color: AppTheme.accentCyan,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Hours This Week',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  hoursText,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        color: AppTheme.primaryBlue,
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
   Widget _buildQuickActionsGrid(BuildContext context) {
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 16,
-      mainAxisSpacing: 16,
-      childAspectRatio: 1.5,
-      children: [
-        _buildActionCard(
-          context,
-          'Safety Audit',
-          Icons.security,
-          AppTheme.errorRed,
-          () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Safety audit feature coming soon!')),
-            );
-          },
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.dashboard,
+                  color: Theme.of(context).primaryColor,
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Quick Actions',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 1.8,
+              children: [
+                _buildActionCard(
+                  context,
+                  'Time History',
+                  Icons.history,
+                  AppTheme.primaryBlue,
+                  () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const TimeHistoryScreen(),
+                      ),
+                    );
+                  },
+                ),
+                _buildActionCard(
+                  context,
+                  'Reports',
+                  Icons.analytics,
+                  AppTheme.accentCyan,
+                  () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Reports feature coming soon!')),
+                    );
+                  },
+                ),
+                _buildActionCard(
+                  context,
+                  'Locations',
+                  Icons.location_on,
+                  AppTheme.secondaryTeal,
+                  () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Locations feature coming soon!')),
+                    );
+                  },
+                ),
+                _buildActionCard(
+                  context,
+                  'Staff',
+                  Icons.groups,
+                  AppTheme.warningAmber,
+                  () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Staff management coming soon!')),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ],
         ),
-        _buildActionCard(
-          context,
-          'Locations',
-          Icons.location_on,
-          AppTheme.secondaryTeal,
-          () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Locations feature coming soon!')),
-            );
-          },
-        ),
-        _buildActionCard(
-          context,
-          'Reports',
-          Icons.analytics,
-          AppTheme.accentCyan,
-          () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Reports feature coming soon!')),
-            );
-          },
-        ),
-        _buildActionCard(
-          context,
-          'Staff',
-          Icons.groups,
-          AppTheme.primaryBlue,
-          () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Staff management coming soon!')),
-            );
-          },
-        ),
-      ],
+      ),
     );
   }
 
@@ -241,42 +626,6 @@ class ManagerDashboard extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPendingReviewsCard(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.rate_review,
-                  color: AppTheme.warningAmber,
-                  size: 24,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'Pending Reviews',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No pending reviews',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.textSecondary,
-                  ),
-            ),
-          ],
         ),
       ),
     );
