@@ -36,6 +36,9 @@ class _LifeguardDashboardState extends State<LifeguardDashboard> {
   Map<String, dynamic>? _scheduleData;
   bool _isLoadingStatus = true;
   bool _isLoadingSchedule = true;
+  int _currentWeekOffset = 0; // 0 = current week, 1 = next week, etc.
+  int? _actualUserId; // Store actual userId from server
+  static const int _maxWeekOffset = 4; // Allow viewing up to 4 weeks ahead (1 month)
 
   @override
   void initState() {
@@ -71,29 +74,72 @@ class _LifeguardDashboardState extends State<LifeguardDashboard> {
         setState(() {
           _userStatus = status;
           _isLoadingStatus = false;
+          _actualUserId = status['userId'] ?? widget.user.userId;
         });
         // Load schedule with actual userId from server
-        _loadSchedule(status['userId'] ?? widget.user.userId);
+        _loadScheduleForWeek();
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _isLoadingStatus = false;
+          _actualUserId = widget.user.userId;
         });
         // Fallback to cached userId
-        _loadSchedule(widget.user.userId);
+        _loadScheduleForWeek();
       }
     }
   }
 
-  Future<void> _loadSchedule(int userId) async {
+  // Get the start of the week (Sunday) for a given date
+  DateTime _getWeekStart(DateTime date) {
+    return date.subtract(Duration(days: date.weekday % 7));
+  }
+
+  // Get the end of the week (Saturday) for a given date
+  DateTime _getWeekEnd(DateTime date) {
+    final weekStart = _getWeekStart(date);
+    return weekStart.add(const Duration(days: 6));
+  }
+
+  // Get week dates based on offset
+  (DateTime, DateTime) _getWeekDates() {
+    final now = DateTime.now();
+    final targetDate = now.add(Duration(days: _currentWeekOffset * 7));
+    final weekStart = _getWeekStart(targetDate);
+    final weekEnd = _getWeekEnd(targetDate);
+    return (weekStart, weekEnd);
+  }
+
+  void _goToPreviousWeek() {
+    if (_currentWeekOffset > 0) {
+      setState(() {
+        _currentWeekOffset--;
+        _isLoadingSchedule = true;
+      });
+      _loadScheduleForWeek();
+    }
+  }
+
+  void _goToNextWeek() {
+    if (_currentWeekOffset < _maxWeekOffset) {
+      setState(() {
+        _currentWeekOffset++;
+        _isLoadingSchedule = true;
+      });
+      _loadScheduleForWeek();
+    }
+  }
+
+  Future<void> _loadScheduleForWeek() async {
+    if (_actualUserId == null) return;
+
     try {
-      final now = DateTime.now();
-      final endDate = now.add(const Duration(days: 30)); // Show 1 month of schedule
+      final (weekStart, weekEnd) = _getWeekDates();
       final schedule = await _userService.getUserSchedule(
-        userId,
-        startDate: now,
-        endDate: endDate,
+        _actualUserId!,
+        startDate: weekStart,
+        endDate: weekEnd,
       );
       if (mounted) {
         setState(() {
@@ -473,12 +519,20 @@ class _LifeguardDashboardState extends State<LifeguardDashboard> {
   }
 
   Widget _buildScheduleCard(BuildContext context) {
+    final (weekStart, weekEnd) = _getWeekDates();
+    final weekLabel = _currentWeekOffset == 0
+        ? 'This Week'
+        : _currentWeekOffset == 1
+            ? 'Next Week'
+            : 'Week ${_currentWeekOffset + 1}';
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Header with title
             Row(
               children: [
                 Icon(
@@ -488,12 +542,57 @@ class _LifeguardDashboardState extends State<LifeguardDashboard> {
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  'Your Schedule (Next 30 Days)',
+                  'Your Schedule',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
+            // Week navigation
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppTheme.secondaryTeal.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      Icons.chevron_left,
+                      color: _currentWeekOffset > 0 ? AppTheme.secondaryTeal : Colors.grey,
+                    ),
+                    onPressed: _currentWeekOffset > 0 ? _goToPreviousWeek : null,
+                  ),
+                  Column(
+                    children: [
+                      Text(
+                        weekLabel,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.secondaryTeal,
+                            ),
+                      ),
+                      Text(
+                        '${DateFormat('MMM d').format(weekStart)} - ${DateFormat('MMM d').format(weekEnd)}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppTheme.textSecondary,
+                            ),
+                      ),
+                    ],
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      Icons.chevron_right,
+                      color: _currentWeekOffset < _maxWeekOffset ? AppTheme.secondaryTeal : Colors.grey,
+                    ),
+                    onPressed: _currentWeekOffset < _maxWeekOffset ? _goToNextWeek : null,
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 16),
             _isLoadingSchedule
