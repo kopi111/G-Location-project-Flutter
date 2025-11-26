@@ -51,7 +51,7 @@ class _LifeguardDashboardState extends State<LifeguardDashboard> {
     final apiClient = ApiClient(prefs);
     _userService = UserService(apiClient);
     _loadUserStatus();
-    _loadSchedule();
+    // Schedule is now loaded after user status to get correct userId
   }
 
   void _loadHoursSummary() {
@@ -72,22 +72,26 @@ class _LifeguardDashboardState extends State<LifeguardDashboard> {
           _userStatus = status;
           _isLoadingStatus = false;
         });
+        // Load schedule with actual userId from server
+        _loadSchedule(status['userId'] ?? widget.user.userId);
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _isLoadingStatus = false;
         });
+        // Fallback to cached userId
+        _loadSchedule(widget.user.userId);
       }
     }
   }
 
-  Future<void> _loadSchedule() async {
+  Future<void> _loadSchedule(int userId) async {
     try {
       final now = DateTime.now();
       final endDate = now.add(const Duration(days: 7));
       final schedule = await _userService.getUserSchedule(
-        widget.user.userId,
+        userId,
         startDate: now,
         endDate: endDate,
       );
