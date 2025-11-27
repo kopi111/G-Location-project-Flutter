@@ -152,6 +152,7 @@ class TimeEntryBloc extends Bloc<TimeEntryEvent, TimeEntryState> {
 
     try {
       final timeEntries = await _timeEntryService.getTimeEntries(
+        userId: event.userId,
         startDate: event.startDate,
         endDate: event.endDate,
         locationId: event.locationId,

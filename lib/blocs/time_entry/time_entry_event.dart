@@ -75,18 +75,20 @@ class EndBreakRequested extends TimeEntryEvent {
 
 /// Load time entries with optional filters
 class LoadTimeEntries extends TimeEntryEvent {
+  final int userId;
   final DateTime? startDate;
   final DateTime? endDate;
   final int? locationId;
 
   const LoadTimeEntries({
+    required this.userId,
     this.startDate,
     this.endDate,
     this.locationId,
   });
 
   @override
-  List<Object?> get props => [startDate, endDate, locationId];
+  List<Object?> get props => [userId, startDate, endDate, locationId];
 }
 
 /// Load hours summary for date range

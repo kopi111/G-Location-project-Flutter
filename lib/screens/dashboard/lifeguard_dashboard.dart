@@ -595,6 +595,9 @@ class _LifeguardDashboardState extends State<LifeguardDashboard> {
               ),
             ),
             const SizedBox(height: 16),
+            // Week Calendar View (Sun-Sat)
+            _buildWeekCalendarView(context, weekStart),
+            const SizedBox(height: 16),
             _isLoadingSchedule
                 ? const Center(child: CircularProgressIndicator())
                 : _scheduleData != null && _scheduleData!['hasSchedule'] == true
@@ -683,6 +686,94 @@ class _LifeguardDashboardState extends State<LifeguardDashboard> {
                       ),
           ],
         ),
+      ),
+    );
+  }
+
+  // Build week calendar view showing Sun-Sat with colors for scheduled days
+  Widget _buildWeekCalendarView(BuildContext context, DateTime weekStart) {
+    final dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    final today = DateTime.now();
+
+    // Get set of dates that have schedules
+    Set<int> scheduledDays = {};
+    if (_scheduleData != null && _scheduleData!['schedules'] != null) {
+      for (var schedule in (_scheduleData!['schedules'] as List)) {
+        final scheduleDate = DateTime.parse(schedule['date']);
+        final dayOfWeek = scheduleDate.weekday % 7; // 0 = Sunday
+        scheduledDays.add(dayOfWeek);
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.grey.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: List.generate(7, (index) {
+          final dayDate = weekStart.add(Duration(days: index));
+          final isScheduled = scheduledDays.contains(index);
+          final isToday = dayDate.year == today.year &&
+                          dayDate.month == today.month &&
+                          dayDate.day == today.day;
+          final isPast = dayDate.isBefore(DateTime(today.year, today.month, today.day));
+
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Day name
+              Text(
+                dayNames[index],
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: isToday ? AppTheme.primaryBlue : AppTheme.textSecondary,
+                    ),
+              ),
+              const SizedBox(height: 4),
+              // Day number with color indicator
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isScheduled
+                      ? (isPast ? Colors.grey : AppTheme.secondaryTeal)
+                      : (isToday ? AppTheme.primaryBlue.withOpacity(0.1) : Colors.transparent),
+                  border: isToday
+                      ? Border.all(color: AppTheme.primaryBlue, width: 2)
+                      : null,
+                ),
+                child: Center(
+                  child: Text(
+                    '${dayDate.day}',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: isScheduled || isToday ? FontWeight.bold : FontWeight.normal,
+                          color: isScheduled
+                              ? Colors.white
+                              : (isPast ? Colors.grey : AppTheme.textPrimary),
+                        ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 2),
+              // Small dot indicator for scheduled days
+              if (isScheduled)
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isPast ? Colors.grey : AppTheme.secondaryTeal,
+                  ),
+                )
+              else
+                const SizedBox(height: 6),
+            ],
+          );
+        }),
       ),
     );
   }

@@ -1,9 +1,14 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../blocs/time_entry/time_entry_bloc.dart';
 import '../../blocs/time_entry/time_entry_event.dart';
 import '../../blocs/time_entry/time_entry_state.dart';
+import '../../config/app_config.dart';
+import '../../services/api/api_client.dart';
+import '../../services/api/user_service.dart';
 import '../../widgets/loading_indicator.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/error_state.dart';
@@ -20,15 +25,59 @@ class _TimeHistoryScreenState extends State<TimeHistoryScreen> {
   DateTime? _startDate;
   DateTime? _endDate;
   int? _selectedLocationId;
+  int? _userId;
+  bool _isLoadingUser = true;
 
   @override
   void initState() {
     super.initState();
-    _loadTimeEntries();
+    _initializeUserId();
+  }
+
+  Future<void> _initializeUserId() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userDataJson = prefs.getString(AppConfig.userKey);
+
+      if (userDataJson != null) {
+        final userData = jsonDecode(userDataJson) as Map<String, dynamic>;
+        final email = userData['email'] as String?;
+
+        if (email != null) {
+          final apiClient = ApiClient(prefs);
+          final userService = UserService(apiClient);
+          final status = await userService.checkUserStatus(email);
+
+          setState(() {
+            _userId = status['userId'] as int?;
+            _isLoadingUser = false;
+          });
+
+          if (_userId != null) {
+            _loadTimeEntries();
+          }
+        } else {
+          setState(() {
+            _isLoadingUser = false;
+          });
+        }
+      } else {
+        setState(() {
+          _isLoadingUser = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isLoadingUser = false;
+      });
+    }
   }
 
   void _loadTimeEntries() {
+    if (_userId == null) return;
+
     context.read<TimeEntryBloc>().add(LoadTimeEntries(
+          userId: _userId!,
           startDate: _startDate,
           endDate: _endDate,
           locationId: _selectedLocationId,
@@ -81,62 +130,69 @@ class _TimeHistoryScreenState extends State<TimeHistoryScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadTimeEntries,
+            onPressed: _userId != null ? _loadTimeEntries : null,
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Filters Section
-          _buildFiltersSection(),
+      body: _isLoadingUser
+          ? const LoadingIndicator(message: 'Loading user data...')
+          : _userId == null
+              ? const ErrorState(
+                  message: 'Unable to load user information',
+                  onRetry: null,
+                )
+              : Column(
+                  children: [
+                    // Filters Section
+                    _buildFiltersSection(),
 
-          // Time Entries List
-          Expanded(
-            child: BlocBuilder<TimeEntryBloc, TimeEntryState>(
-              builder: (context, state) {
-                if (state is TimeEntryLoading) {
-                  return const LoadingIndicator(message: 'Loading time entries...');
-                }
+                    // Time Entries List
+                    Expanded(
+                      child: BlocBuilder<TimeEntryBloc, TimeEntryState>(
+                        builder: (context, state) {
+                          if (state is TimeEntryLoading) {
+                            return const LoadingIndicator(message: 'Loading time entries...');
+                          }
 
-                if (state is TimeEntryError) {
-                  return ErrorState(
-                    message: state.message,
-                    onRetry: _loadTimeEntries,
-                  );
-                }
+                          if (state is TimeEntryError) {
+                            return ErrorState(
+                              message: state.message,
+                              onRetry: _loadTimeEntries,
+                            );
+                          }
 
-                if (state is TimeEntriesLoaded) {
-                  if (state.timeEntries.isEmpty) {
-                    return EmptyState(
-                      icon: Icons.access_time,
-                      title: 'No time entries found',
-                      message: _hasActiveFilters()
-                          ? 'Try adjusting your filters'
-                          : 'You haven\'t clocked in yet',
-                      actionLabel: _hasActiveFilters() ? 'Clear Filters' : null,
-                      onAction: _hasActiveFilters() ? _clearFilters : null,
-                    );
-                  }
+                          if (state is TimeEntriesLoaded) {
+                            if (state.timeEntries.isEmpty) {
+                              return EmptyState(
+                                icon: Icons.access_time,
+                                title: 'No time entries found',
+                                message: _hasActiveFilters()
+                                    ? 'Try adjusting your filters'
+                                    : 'You haven\'t clocked in yet',
+                                actionLabel: _hasActiveFilters() ? 'Clear Filters' : null,
+                                onAction: _hasActiveFilters() ? _clearFilters : null,
+                              );
+                            }
 
-                  return RefreshIndicator(
-                    onRefresh: () async => _loadTimeEntries(),
-                    child: ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: state.timeEntries.length,
-                      itemBuilder: (context, index) {
-                        final entry = state.timeEntries[index];
-                        return _buildTimeEntryCard(entry);
-                      },
+                            return RefreshIndicator(
+                              onRefresh: () async => _loadTimeEntries(),
+                              child: ListView.builder(
+                                padding: const EdgeInsets.all(16),
+                                itemCount: state.timeEntries.length,
+                                itemBuilder: (context, index) {
+                                  final entry = state.timeEntries[index];
+                                  return _buildTimeEntryCard(entry);
+                                },
+                              ),
+                            );
+                          }
+
+                          return const Center(child: Text('Pull down to load time entries'));
+                        },
+                      ),
                     ),
-                  );
-                }
-
-                return const Center(child: Text('Pull down to load time entries'));
-              },
-            ),
-          ),
-        ],
-      ),
+                  ],
+                ),
     );
   }
 

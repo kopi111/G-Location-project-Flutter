@@ -111,7 +111,7 @@ class TimeEntryService {
 
   /// Get time entries with filters and pagination
   Future<List<TimeEntry>> getTimeEntries({
-    int? userId,
+    required int userId,
     int? locationId,
     DateTime? startDate,
     DateTime? endDate,
@@ -121,7 +121,6 @@ class TimeEntryService {
     int pageSize = 20,
   }) async {
     final queryParams = <String, dynamic>{
-      if (userId != null) 'userId': userId,
       if (locationId != null) 'locationId': locationId,
       if (startDate != null) 'startDate': startDate.toIso8601String(),
       if (endDate != null) 'endDate': endDate.toIso8601String(),
@@ -132,13 +131,13 @@ class TimeEntryService {
     };
 
     final response = await _apiClient.get(
-      AppConfig.timeEntriesEndpoint,
+      '${AppConfig.timeEntriesEndpoint}/$userId',
       queryParameters: queryParams,
     );
 
     if (response.data['success'] == true) {
-      final data = response.data['data'];
-      final timeEntries = (data['timeEntries'] as List)
+      final records = response.data['records'] as List? ?? [];
+      final timeEntries = records
           .map((json) => TimeEntry.fromJson(json as Map<String, dynamic>))
           .toList();
       return timeEntries;
