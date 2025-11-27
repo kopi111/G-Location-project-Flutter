@@ -23,16 +23,18 @@ class ClockInRequested extends TimeEntryEvent {
   final int locationId;
   final double latitude;
   final double longitude;
+  final bool forceOverride;
 
   const ClockInRequested({
     required this.userId,
     required this.locationId,
     required this.latitude,
     required this.longitude,
+    this.forceOverride = false,
   });
 
   @override
-  List<Object?> get props => [userId, locationId, latitude, longitude];
+  List<Object?> get props => [userId, locationId, latitude, longitude, forceOverride];
 }
 
 /// Clock out from current shift

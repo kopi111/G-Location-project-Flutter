@@ -47,6 +47,26 @@ class ClockInSuccess extends TimeEntryState {
   List<Object?> get props => [timeEntry, hasGPSIssue, message];
 }
 
+/// Clock in requires confirmation (already clocked out today)
+class ClockInConfirmationRequired extends TimeEntryState {
+  final String message;
+  final int userId;
+  final int locationId;
+  final double latitude;
+  final double longitude;
+
+  const ClockInConfirmationRequired({
+    required this.message,
+    required this.userId,
+    required this.locationId,
+    required this.latitude,
+    required this.longitude,
+  });
+
+  @override
+  List<Object?> get props => [message, userId, locationId, latitude, longitude];
+}
+
 /// Clock out successful
 class ClockOutSuccess extends TimeEntryState {
   final Map<String, dynamic> timeEntry;

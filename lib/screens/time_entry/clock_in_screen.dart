@@ -179,6 +179,44 @@ class _ClockInScreenState extends State<ClockInScreen> {
                 ],
               ),
             );
+          } else if (state is ClockInConfirmationRequired) {
+            // Show confirmation dialog - already clocked out today
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (dialogContext) => AlertDialog(
+                title: const Row(
+                  children: [
+                    Icon(Icons.warning_amber, color: Colors.orange),
+                    SizedBox(width: 8),
+                    Text('Already Clocked Out'),
+                  ],
+                ),
+                content: Text(state.message),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop(); // Close dialog
+                    },
+                    child: const Text('Cancel'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop(); // Close dialog
+                      // Retry with force override
+                      context.read<TimeEntryBloc>().add(ClockInRequested(
+                            userId: state.userId,
+                            locationId: state.locationId,
+                            latitude: state.latitude,
+                            longitude: state.longitude,
+                            forceOverride: true,
+                          ));
+                    },
+                    child: const Text('Start New Shift'),
+                  ),
+                ],
+              ),
+            );
           } else if (state is TimeEntryError) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text(state.message)),

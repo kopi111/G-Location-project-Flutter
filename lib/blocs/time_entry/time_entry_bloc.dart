@@ -59,7 +59,20 @@ class TimeEntryBloc extends Bloc<TimeEntryEvent, TimeEntryState> {
         locationId: event.locationId,
         latitude: event.latitude,
         longitude: event.longitude,
+        forceOverride: event.forceOverride,
       );
+
+      // Check if confirmation is required (already clocked out today)
+      if (result['requiresConfirmation'] == true) {
+        emit(ClockInConfirmationRequired(
+          message: result['message'] ?? 'You have already clocked out today. Do you want to start a new shift?',
+          userId: event.userId,
+          locationId: event.locationId,
+          latitude: event.latitude,
+          longitude: event.longitude,
+        ));
+        return;
+      }
 
       emit(ClockInSuccess(
         timeEntry: result,

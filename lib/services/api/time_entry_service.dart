@@ -16,6 +16,7 @@ class TimeEntryService {
     required double longitude,
     String? deviceInfo,
     String? notes,
+    bool forceOverride = false,
   }) async {
     final response = await _apiClient.post(
       AppConfig.clockInEndpoint,
@@ -23,8 +24,20 @@ class TimeEntryService {
         'userId': userId,
         'locationId': locationId,
         'notes': notes,
+        'forceOverride': forceOverride,
       },
     );
+
+    // Check if requires confirmation (already clocked out today)
+    if (response.data['requiresConfirmation'] == true) {
+      return {
+        'success': false,
+        'requiresConfirmation': true,
+        'message': response.data['message'] ?? 'You have already clocked out today.',
+        'previousClockIn': response.data['previousClockIn'],
+        'previousClockOut': response.data['previousClockOut'],
+      };
+    }
 
     if (response.data['success'] == true) {
       return {
